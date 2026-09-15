@@ -14,13 +14,158 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      presentation_sessions: {
+        Row: {
+          command_sequence: number
+          controller_id: string | null
+          controller_lease_until: string | null
+          current_slide: number
+          id: string
+          is_active: boolean
+          owner_id: string
+          pending_sequence: number | null
+          presentation_id: string
+          remote_enabled: boolean
+          updated_at: string
+        }
+        Insert: {
+          command_sequence?: number
+          controller_id?: string | null
+          controller_lease_until?: string | null
+          current_slide?: number
+          id?: string
+          is_active?: boolean
+          owner_id: string
+          pending_sequence?: number | null
+          presentation_id: string
+          remote_enabled?: boolean
+          updated_at?: string
+        }
+        Update: {
+          command_sequence?: number
+          controller_id?: string | null
+          controller_lease_until?: string | null
+          current_slide?: number
+          id?: string
+          is_active?: boolean
+          owner_id?: string
+          pending_sequence?: number | null
+          presentation_id?: string
+          remote_enabled?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "presentation_sessions_presentation_id_fkey"
+            columns: ["presentation_id"]
+            isOneToOne: true
+            referencedRelation: "presentations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      presentations: {
+        Row: {
+          access_code: string
+          created_at: string
+          id: string
+          name: string
+          owner_id: string
+          slide_count: number
+          status: string
+          storage_path: string
+          updated_at: string
+        }
+        Insert: {
+          access_code: string
+          created_at?: string
+          id?: string
+          name: string
+          owner_id: string
+          slide_count?: number
+          status?: string
+          storage_path: string
+          updated_at?: string
+        }
+        Update: {
+          access_code?: string
+          created_at?: string
+          id?: string
+          name?: string
+          owner_id?: string
+          slide_count?: number
+          status?: string
+          storage_path?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      slide_commands: {
+        Row: {
+          acknowledged_at: string | null
+          controller_id: string
+          created_at: string
+          direction: string
+          id: string
+          sequence: number
+          session_id: string
+          status: string
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          controller_id: string
+          created_at?: string
+          direction: string
+          id?: string
+          sequence: number
+          session_id: string
+          status?: string
+        }
+        Update: {
+          acknowledged_at?: string | null
+          controller_id?: string
+          created_at?: string
+          direction?: string
+          id?: string
+          sequence?: number
+          session_id?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slide_commands_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "presentation_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      acknowledge_slide_command: {
+        Args: { _current_slide: number; _sequence: number; _session_id: string }
+        Returns: boolean
+      }
+      join_presentation: {
+        Args: { _code: string }
+        Returns: {
+          claimed: boolean
+          current_slide: number
+          presentation_name: string
+          session_id: string
+          slide_count: number
+        }[]
+      }
+      release_controller: { Args: { _session_id: string }; Returns: boolean }
+      renew_controller: { Args: { _session_id: string }; Returns: boolean }
+      submit_slide_command: {
+        Args: { _direction: string; _session_id: string }
+        Returns: number
+      }
     }
     Enums: {
       [_ in never]: never
