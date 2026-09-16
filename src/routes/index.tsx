@@ -4,8 +4,10 @@ import { ChevronLeft, ChevronRight, Expand, FileUp, MonitorPlay, Power, Trash2, 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { PdfPresenter } from "@/components/pdf-presenter";
 import { PptxPresenter } from "@/components/pptx-presenter";
-import { ensureAnonymousUser, makeAccessCode, type Presentation, type PresentationSession } from "@/lib/presentations";
+import { countPdfPages } from "@/lib/pdf";
+import { DECK_KINDS, deckKind, ensureAnonymousUser, kindFromFileName, makeAccessCode, type Presentation, type PresentationSession } from "@/lib/presentations";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/")({
@@ -31,6 +33,10 @@ function Index() {
   const [slide, setSlide] = useState(1);
   const [rendererReady, setRendererReady] = useState(false);
   const presenterRef = useRef<HTMLDivElement>(null);
+  // Declared here, not in the presenting branch below: hooks called after a conditional
+  // return change the hook count between renders and React throws on the next render.
+  const handleRendererReady = useCallback(() => setRendererReady(true), []);
+  const handleRendererError = useCallback((message: string) => setError(message), []);
 
   const loadDecks = useCallback(async () => {
     const user = await ensureAnonymousUser();
@@ -98,22 +104,28 @@ function Index() {
     return () => window.removeEventListener("keydown", onKey);
   }, [active, moveLocal, stopPresentation]);
 
+  async function countSlides(kind: "pptx" | "pdf", buffer: ArrayBuffer) {
+    if (kind === "pdf") return countPdfPages(buffer);
+    const zip = await JSZip.loadAsync(buffer);
+    return Object.keys(zip.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length;
+  }
+
   async function upload(file: File) {
-    if (!file.name.toLowerCase().endsWith(".pptx")) { setError("Choose a .pptx PowerPoint file."); return; }
+    const kind = kindFromFileName(file.name);
+    if (!kind) { setError("Choose a .pptx or .pdf file."); return; }
     setUploading(true); setError("");
     try {
       const user = await ensureAnonymousUser();
       const buffer = await file.arrayBuffer();
-      const zip = await JSZip.loadAsync(buffer);
-      const slideCount = Object.keys(zip.files).filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name)).length;
-      if (slideCount < 1 || slideCount > 500) throw new Error("The file has no readable slides or exceeds 500 slides.");
+      const slideCount = await countSlides(kind, buffer);
+      if (slideCount < 1 || slideCount > 500) throw new Error(`The file has no readable ${DECK_KINDS[kind].unit}s or exceeds 500.`);
       const id = crypto.randomUUID();
-      const path = `${user.id}/${id}.pptx`;
-      const { error: storageError } = await supabase.storage.from("presentations").upload(path, file, { contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation" });
+      const path = `${user.id}/${id}${DECK_KINDS[kind].extension}`;
+      const { error: storageError } = await supabase.storage.from("presentations").upload(path, file, { contentType: DECK_KINDS[kind].contentType });
       if (storageError) throw storageError;
       let created: Presentation | null = null;
       for (let attempt = 0; attempt < 5 && !created; attempt += 1) {
-        const { data, error: insertError } = await supabase.from("presentations").insert({ id, owner_id: user.id, name: file.name.replace(/\.pptx$/i, ""), storage_path: path, slide_count: slideCount, access_code: makeAccessCode() }).select("id,name,storage_path,slide_count,access_code,status").single();
+        const { data, error: insertError } = await supabase.from("presentations").insert({ id, owner_id: user.id, name: file.name.replace(/\.(pptx|pdf)$/i, ""), storage_path: path, slide_count: slideCount, access_code: makeAccessCode() }).select("id,name,storage_path,slide_count,access_code,status").single();
         if (!insertError) created = data;
         else if (insertError.code !== "23505") throw insertError;
       }
@@ -162,7 +174,9 @@ function Index() {
         <Button aria-label="Close presentation" title="Close presentation" variant="ghost" size="icon" onClick={() => void stopPresentation()}><X /></Button>
       </div>
       <section className="presenter-canvas">
-        <PptxPresenter file={fileData} slide={slide} onReady={useCallback(() => setRendererReady(true), [])} onError={useCallback((message: string) => setError(message), [])} />
+        {deckKind(active.storage_path) === "pdf"
+          ? <PdfPresenter file={fileData} slide={slide} onReady={handleRendererReady} onError={handleRendererError} />
+          : <PptxPresenter file={fileData} slide={slide} onReady={handleRendererReady} onError={handleRendererError} />}
         {!rendererReady && <div className="presenter-loading">Preparing slides…</div>}
       </section>
       <div className="presenter-controls">
@@ -175,15 +189,15 @@ function Index() {
   }
 
   return <main className="operator-shell">
-    <header className="operator-header"><div><p className="brand-mark">SLIDE RELAY</p><h1>Desktop presenter</h1><p className="muted-copy">Upload a PowerPoint, open it, then enable phone control.</p></div><Button asChild variant="outline"><Link to="/remote">Open phone remote</Link></Button></header>
+    <header className="operator-header"><div><p className="brand-mark">SLIDE RELAY</p><h1>Desktop presenter</h1><p className="muted-copy">Upload a PowerPoint or PDF, open it, then enable phone control.</p></div><Button asChild variant="outline"><Link to="/remote">Open phone remote</Link></Button></header>
     <section className="upload-band">
       <FileUp aria-hidden="true" />
-      <div><strong>Add a PowerPoint</strong><p>Static slide playback · .pptx · up to 20 MB</p></div>
-      <label className="ml-auto"><input className="sr-only" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} /><span className="upload-button">{uploading ? "Uploading…" : "Choose file"}</span></label>
+      <div><strong>Add a PowerPoint or PDF</strong><p>Static slide playback · .pptx or .pdf · up to 20 MB</p></div>
+      <label className="ml-auto"><input className="sr-only" type="file" accept=".pptx,.pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation,application/pdf" disabled={uploading} onChange={(event) => { const file = event.target.files?.[0]; if (file) void upload(file); event.currentTarget.value = ""; }} /><span className="upload-button">{uploading ? "Uploading…" : "Choose file"}</span></label>
     </section>
     {error && <p className="error-banner" role="alert">{error}</p>}
     <section aria-labelledby="presentations-title"><div className="section-heading"><h2 id="presentations-title">Presentations</h2><span>{decks.length}</span></div>
-      {loading ? <p className="empty-state">Loading presentations…</p> : decks.length === 0 ? <p className="empty-state">No presentations yet. Upload a .pptx file to begin.</p> : <div className="deck-list">{decks.map((deck) => <article key={deck.id} className="deck-row"><div className="file-glyph">P</div><div className="deck-name"><strong>{deck.name}</strong><span>{deck.slide_count} slide{deck.slide_count === 1 ? "" : "s"}</span></div><div className="code-block"><span>Access code</span><strong>{deck.access_code}</strong></div><Button onClick={() => void present(deck)}><MonitorPlay />Present</Button><Button aria-label={`Delete ${deck.name}`} title="Delete presentation" variant="ghost" size="icon" onClick={() => void remove(deck)}><Trash2 /></Button></article>)}</div>}
+      {loading ? <p className="empty-state">Loading presentations…</p> : decks.length === 0 ? <p className="empty-state">No presentations yet. Upload a .pptx or .pdf file to begin.</p> : <div className="deck-list">{decks.map((deck) => { const kind = DECK_KINDS[deckKind(deck.storage_path)]; return <article key={deck.id} className="deck-row"><div className="file-glyph">{kind.label}</div><div className="deck-name"><strong>{deck.name}</strong><span>{deck.slide_count} {kind.unit}{deck.slide_count === 1 ? "" : "s"}</span></div><div className="code-block"><span>Access code</span><strong>{deck.access_code}</strong></div><Button onClick={() => void present(deck)}><MonitorPlay />Present</Button><Button aria-label={`Delete ${deck.name}`} title="Delete presentation" variant="ghost" size="icon" onClick={() => void remove(deck)}><Trash2 /></Button></article>; })}</div>}
     </section>
     <footer className="operator-footer"><Power />Only the presentation open here can receive phone commands.</footer>
   </main>;

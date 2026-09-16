@@ -20,6 +20,25 @@ export type PresentationSession = {
   pending_sequence: number | null;
 };
 
+export type DeckKind = "pptx" | "pdf";
+
+export const DECK_KINDS: Record<DeckKind, { extension: string; contentType: string; label: string; unit: string }> = {
+  pptx: { extension: ".pptx", contentType: "application/vnd.openxmlformats-officedocument.presentationml.presentation", label: "PPT", unit: "slide" },
+  pdf: { extension: ".pdf", contentType: "application/pdf", label: "PDF", unit: "page" },
+};
+
+/** Upload paths keep the original extension, so the kind needs no extra column on the row. */
+export function deckKind(storagePath: string): DeckKind {
+  return storagePath.toLowerCase().endsWith(DECK_KINDS.pdf.extension) ? "pdf" : "pptx";
+}
+
+export function kindFromFileName(fileName: string): DeckKind | null {
+  const lower = fileName.toLowerCase();
+  if (lower.endsWith(DECK_KINDS.pptx.extension)) return "pptx";
+  if (lower.endsWith(DECK_KINDS.pdf.extension)) return "pdf";
+  return null;
+}
+
 export async function ensureAnonymousUser() {
   const { data } = await supabase.auth.getSession();
   if (data.session?.user) return data.session.user;

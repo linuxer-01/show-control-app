@@ -163,7 +163,7 @@
   .section-heading span { color: var(--color-muted-foreground); }
   .deck-list { border-top: 1px solid var(--color-border); }
   .deck-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto auto; align-items: center; gap: 1rem; border-bottom: 1px solid var(--color-border); padding: 1rem 0; }
-  .file-glyph { display: grid; width: 2.5rem; height: 3rem; place-items: center; border-radius: var(--radius-sm); background: var(--color-destructive); color: var(--color-destructive-foreground); font-weight: 800; }
+  .file-glyph { display: grid; width: 2.5rem; height: 3rem; place-items: center; border-radius: var(--radius-sm); background: var(--color-destructive); color: var(--color-destructive-foreground); font-size: 0.7rem; font-weight: 800; letter-spacing: 0.02em; }
   .deck-name { min-width: 0; }
   .deck-name strong, .deck-name span, .code-block span, .code-block strong { display: block; }
   .deck-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -183,9 +183,12 @@
   .presenter-code strong { font-family: ui-monospace, monospace; font-size: 1.15rem; }
   .remote-toggle { display: flex; align-items: center; gap: 0.55rem; white-space: nowrap; }
   .presenter-canvas { position: relative; display: grid; min-height: 0; place-items: center; overflow: hidden; padding: 1rem; }
-  .pptx-stage { width: min(100%, calc((100vh - 9rem) * 16 / 9)); aspect-ratio: 16 / 9; overflow: hidden; background: oklch(1 0 0); }
-  .pptx-stage > div { width: 100% !important; height: 100% !important; transform-origin: top left; }
-  .pptx-stage [class*="pagination"], .pptx-stage button { display: none !important; }
+  .slide-stage { position: absolute; inset: 1rem; display: grid; place-items: center; overflow: hidden; }
+  .slide-frame { background: oklch(1 0 0); transform-origin: center; }
+  .pptx-frame > .pptx-preview-wrapper { overflow: hidden !important; }
+  .pptx-frame .pptx-preview-wrapper-next, .pptx-frame .pptx-preview-wrapper-pagination { display: none !important; }
+  .pdf-frame { display: grid; place-items: center; }
+  .pdf-frame canvas { display: block; }
   .presenter-loading { position: absolute; inset: 0; display: grid; place-items: center; background: oklch(0.08 0 0 / 70%); }
   .presenter-controls { display: flex; align-items: center; justify-content: center; gap: 1rem; background: oklch(0.12 0 0); padding: 0.65rem; }
   .presenter-controls span { min-width: 9rem; text-align: center; font-size: 0.8rem; color: oklch(0.75 0 0); }
